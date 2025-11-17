@@ -29,16 +29,25 @@ La idea es ofrecer una herramienta simple, transparente y accesible para la gest
    ```bash
    npm install
 3. Configurar las variables de entorno necesarias (Firebase y Sanity).
-4. Ejecutar en modo desarrollo:
+    ```bash
+   VITE_FIREBASE_API_KEY=
+   VITE_FIREBASE_AUTH_DOMAIN=
+   VITE_FIREBASE_PROJECT_ID=
+   VITE_FIREBASE_STORAGE_BUCKET=
+   VITE_FIREBASE_MESSAGING_SENDER_ID=
+   VITE_FIREBASE_APP_ID=
+   SANITY_PROJECT_ID=
+   SANITY_DATASET=
+
+5. Ejecutar en modo desarrollo:
    ```bash
    npm run dev
-5. Abrir en el navegador.
+6. Abrir en el navegador.
+## Despliegue
+Versión en producción:
+https://comuna-manantial.vercel.app/
 ## Contribuciones
-Las mejoras y sugerencias son bienvenidas.  
-Para colaborar:
-1. Haz un fork del repositorio.  
-2. Crea una rama con tu propuesta.  
-3. Envía un pull request.  
+Sugerencias y mejoras son bienvenidas. Pull requests abiertos son revisados. 
 
 ## Autor
 **Lucas Emanuel Aguirre**  
