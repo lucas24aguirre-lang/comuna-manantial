@@ -43,9 +43,18 @@ La idea es ofrecer una herramienta simple, transparente y accesible para la gest
    ```bash
    npm run dev
 6. Abrir en el navegador.
+   
 ## Despliegue
 Versión en producción:
 https://comuna-manantial.vercel.app/
+
+## Estado del proyecto
+En desarrollo. Próximas mejoras:
+
+- Mejoras en la interfaz de usuario (UI).
+- Panel administrativo con métricas.
+- Optimización de la experiencia de usuario.
+
 ## Contribuciones
 Sugerencias y mejoras son bienvenidas. Pull requests abiertos son revisados. 
 
