@@ -1,16 +1,51 @@
-# React + Vite
+# Comuna Manantial
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Este proyecto es una plataforma web pensada para mejorar la comunicación entre vecinos y la administración local.  
+Permite registrar reclamos, darles seguimiento en tiempo real y visualizar su estado en un mapa interactivo.  
+La idea es ofrecer una herramienta simple, transparente y accesible para la gestión comunitaria.
 
-Currently, two official plugins are available:
+## Características
+- Registro de reclamos con base de datos en tiempo real (Firestore).
+- Autenticación de usuarios y sistema de roles.
+- Mapa interactivo con geolocalización de incidencias.
+- Carga de imágenes optimizada en Firebase Storage.
+- CMS headless con Sanity.io para gestión de contenido.
+- Interfaz responsive con modo oscuro.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tecnologías utilizadas
+- React 18  
+- Firebase (Auth, Firestore, Storage)  
+- Sanity CMS  
+- Mantine UI  
+- Leaflet Maps  
+- Vercel (despliegue serverless)
 
-## React Compiler
+## Instalación
+1. Clonar el repositorio:
+   ```bash
+   git clone https://github.com/lucas24aguirre-lang/comuna-manantial.git
+   cd comuna-manantial
+2. Instalar dependencias:
+   ```bash
+   npm install
+3. Configurar las variables de entorno necesarias (Firebase y Sanity).
+4. Ejecutar en modo desarrollo:
+   ```bash
+   npm run dev
+5. Abrir en el navegador.
+## Contribuciones
+Las mejoras y sugerencias son bienvenidas.  
+Para colaborar:
+1. Haz un fork del repositorio.  
+2. Crea una rama con tu propuesta.  
+3. Envía un pull request.  
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Autor
+**Lucas Emanuel Aguirre**  
+- LinkedIn: [linkedin.com/in/lucas-emanuel-aguirre-69617532a](https://www.linkedin.com/in/lucas-emanuel-aguirre-69617532a/)  
+- GitHub: [github.com/lucas24aguirre-lang](https://github.com/lucas24aguirre-lang)
 
-## Expanding the ESLint configuration
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+
+
