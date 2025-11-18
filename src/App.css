@@ -1,0 +1,227 @@
+/* App.css - Tema Celeste Argentino */
+
+/* Background con gradiente celeste suave */
+body {
+  background: linear-gradient(135deg, #f0f7fc 0%, #e8f2f9 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Patrón sutil de puntos celestes */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: radial-gradient(circle, #c0d8f0 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Suavizar transiciones globales */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Mejorar scroll suave */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Mejorar selección de texto con celeste */
+::selection {
+  background-color: #75AADB;
+  color: white;
+}
+
+/* Estilos para el contenido principal */
+main {
+  position: relative;
+  z-index: 1;
+}
+
+/* Animación de fade in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Clase helper para animaciones */
+.fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+/* Pulse animation para elementos importantes */
+@keyframes pulse-celeste {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(117, 170, 219, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(117, 170, 219, 0);
+  }
+}
+
+/* Aplicar animación a botones importantes */
+.pulse-celeste {
+  animation: pulse-celeste 2s infinite;
+}
+
+/* Mejorar contraste en modo oscuro */
+[data-mantine-color-scheme="dark"] body::before {
+  background-image: radial-gradient(circle, #437498 1px, transparent 1px);
+  opacity: 0.2;
+}
+
+[data-mantine-color-scheme="dark"] body {
+  background: linear-gradient(135deg, #1a1f2e 0%, #252b3b 100%);
+}
+
+/* Scrollbar personalizado con celeste */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #75AADB 0%, #5385AD 100%);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #5385AD 0%, #437498 100%);
+}
+
+[data-mantine-color-scheme="dark"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #437498 0%, #5385AD 100%);
+}
+
+/* Estilos para cards con borde celeste */
+.card-celeste {
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.card-celeste:hover {
+  border-color: #75AADB;
+  box-shadow: 0 8px 24px rgba(117, 170, 219, 0.2);
+  transform: translateY(-4px);
+}
+
+/* Botones con efecto glassmorphism celeste */
+.glass-celeste {
+  background: rgba(117, 170, 219, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(117, 170, 219, 0.3);
+}
+
+[data-mantine-color-scheme="dark"] .glass-celeste {
+  background: rgba(117, 170, 219, 0.15);
+  border: 1px solid rgba(117, 170, 219, 0.4);
+}
+
+/* Mejora para inputs con foco celeste */
+input:focus, 
+textarea:focus, 
+select:focus {
+  border-color: #75AADB !important;
+  box-shadow: 0 0 0 2px rgba(117, 170, 219, 0.2) !important;
+}
+
+/* Badge personalizado celeste */
+.badge-celeste {
+  background: linear-gradient(135deg, #75AADB 0%, #5385AD 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+/* Links con color celeste */
+a {
+  color: #5385AD;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: #75AADB;
+}
+
+/* Mejorar loading states con celeste */
+.loading-celeste {
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(117, 170, 219, 0.2), 
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: loading-shimmer 1.5s infinite;
+}
+
+@keyframes loading-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Sombras celestes para elevación */
+.shadow-celeste-sm {
+  box-shadow: 0 2px 8px rgba(117, 170, 219, 0.15);
+}
+
+.shadow-celeste-md {
+  box-shadow: 0 4px 16px rgba(117, 170, 219, 0.2);
+}
+
+.shadow-celeste-lg {
+  box-shadow: 0 8px 32px rgba(117, 170, 219, 0.25);
+}
+
+/* Dividers con gradiente celeste */
+.divider-celeste {
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent, 
+    #75AADB, 
+    transparent
+  );
+  border: none;
+  margin: 24px 0;
+}
+
+/* Footer con tono celeste */
+footer {
+  background: linear-gradient(135deg, 
+    rgba(117, 170, 219, 0.05) 0%, 
+    rgba(83, 133, 173, 0.05) 100%
+  );
+  border-top: 2px solid rgba(117, 170, 219, 0.1);
+  padding: 24px;
+  margin-top: 48px;
+}
+
+[data-mantine-color-scheme="dark"] footer {
+  background: linear-gradient(135deg, 
+    rgba(117, 170, 219, 0.08) 0%, 
+    rgba(83, 133, 173, 0.08) 100%
+  );
+  border-top: 2px solid rgba(117, 170, 219, 0.2);
+}
