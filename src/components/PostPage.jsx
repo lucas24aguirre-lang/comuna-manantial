@@ -17,6 +17,7 @@ export default function PostPage() {
 
     const fetchPost = async () => {
       try {
+        // GROQ Query to fetch a single post by its slug
         const query = `*[_type == "post" && slug.current == $slug][0] {
           _id,
           title,
@@ -36,7 +37,7 @@ export default function PostPage() {
           setError("No se encontró el artículo que estás buscando.");
         }
       } catch (err) {
-        console.error("Error al obtener el post:", err);
+        console.error("Sanity fetch error:", err);
         setError("Ocurrió un error al cargar el artículo.");
       } finally {
         setLoading(false);
@@ -77,6 +78,7 @@ export default function PostPage() {
   const imageUrl = post.mainImage 
     ? urlFor(post.mainImage).width(800).height(400).url() 
     : null;
+    
   const postDate = new Date(post.publishedAt).toLocaleDateString('es-AR');
 
   return (

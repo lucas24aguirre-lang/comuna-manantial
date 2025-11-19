@@ -8,6 +8,7 @@ import {
 import { IconMessages, IconMap } from '@tabler/icons-react';
 import { client, urlFor } from '../sanity/config';
 
+// Individual post card component for grid display
 function PostCard({ post }) {
   const postDate = new Date(post.publishedAt).toLocaleDateString('es-AR');
   const imageUrl = post.mainImage 
@@ -40,48 +41,26 @@ function PostCard({ post }) {
               src={imageUrl}
               height={220}
               alt={post.title}
-              style={{ 
-                transition: 'transform 0.3s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
+              style={{ transition: 'transform 0.3s ease' }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
             />
           </Box>
         </Card.Section>
 
         <Box mt="md">
           <Group justify="space-between" mb="xs">
-            <Badge 
-              color="blue" 
-              variant="light" 
-              radius="md"
-              size="lg"
-              style={{ fontWeight: 600 }}
-            >
+            <Badge color="blue" variant="light" radius="md" size="lg">
               {post.author}
             </Badge>
-            <Text size="sm" c="dimmed" fw={500}>
-              📅 {postDate}
-            </Text>
+            <Text size="sm" c="dimmed" fw={500}>📅 {postDate}</Text>
           </Group>
 
-          <Title 
-            order={3} 
-            size="h3" 
-            fw={700} 
-            style={{ 
-              lineHeight: 1.3,
-              marginBottom: 12
-            }}
-          >
+          <Title order={3} size="h3" fw={700} style={{ lineHeight: 1.3, marginBottom: 12 }}>
             {post.title}
           </Title>
 
-          <Text size="md" c="dimmed" style={{ lineHeight: 1.6 }}>
+          <Text size="md" c="dimmed" lineClamp={3} style={{ lineHeight: 1.6 }}>
             {post.summary}
           </Text>
 
@@ -94,10 +73,7 @@ function PostCard({ post }) {
             size="md"
             component={Link}
             to={`/post/${post.slug.current}`}
-            style={{
-              fontWeight: 600,
-              boxShadow: '0 4px 12px rgba(117, 170, 219, 0.3)'
-            }}
+            style={{ boxShadow: '0 4px 12px rgba(117, 170, 219, 0.3)' }}
           >
             Leer más →
           </Button>
@@ -118,37 +94,22 @@ export default function BlogPage() {
       setLoading(true);
       try {
         const query = `*[_type == "post"] | order(publishedAt desc) {
-          _id,
-          title,
-          slug,
-          author,
-          summary,
-          content,
-          mainImage,
-          publishedAt
+          _id, title, slug, author, summary, content, mainImage, publishedAt
         }`;
-        
         const data = await client.fetch(query);
         setPosts(data);
-        console.log('✅ Posts cargados desde Sanity:', data.length);
       } catch (error) {
-        console.error("❌ Error al obtener los posts:", error);
+        console.error("Sanity fetch error:", error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchPosts();
   }, []);
 
   return (
-    <Container 
-      size="xl"
-      style={{ 
-        marginTop: 40,
-        marginBottom: 40,
-      }}
-    >
+    <Container size="xl" style={{ marginTop: 40, marginBottom: 40 }}>
+      
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -157,58 +118,45 @@ export default function BlogPage() {
         <Box
           style={{
             background: isDark 
-              ? 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)'
+              ? 'linear-gradient(135deg, #334155 0%, #1e293b 100%)'
               : 'linear-gradient(135deg, #75AADB 0%, #5385AD 100%)',
             borderRadius: 20,
-            padding: '60px 40px',
+            padding: 'clamp(40px, 5vw, 60px) clamp(20px, 3vw, 40px)',
             marginBottom: 40,
             color: 'white',
             textAlign: 'center',
             boxShadow: isDark 
-              ? '0 8px 32px rgba(30, 64, 175, 0.5)'
+              ? '0 8px 32px rgba(51, 65, 85, 0.5)'
               : '0 8px 32px rgba(117, 170, 219, 0.3)'
           }}
         >
           <Title 
             order={1} 
-            size={56} 
             fw={900} 
             mb="md"
             style={{ 
-              letterSpacing: '-2px',
-              textShadow: '0 2px 10px rgba(0,0,0,0.2)'
+              fontSize: 'clamp(32px, 6vw, 56px)',
+              letterSpacing: '-1px',
+              textShadow: '0 2px 10px rgba(0,0,0,0.2)',
+              lineHeight: 1.1
             }}
           >
             🏛️ Noticias de la Comuna
           </Title>
-          <Text size="xl" opacity={0.95} fw={500}>
+          <Text size="xl" opacity={0.95} fw={500} style={{ fontSize: 'clamp(16px, 4vw, 20px)' }}>
             Información oficial, novedades y actualizaciones del barrio
           </Text>
         </Box>
       </motion.div>
 
       {loading ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          <Paper 
-            shadow="sm" 
-            p="xl" 
-            radius="xl"
-            style={{ 
-              textAlign: 'center',
-              background: 'var(--mantine-color-body)'
-            }}
-          >
-            <Loader size="xl" color="blue" mb="md" />
-            <Text size="lg" fw={500}>Cargando noticias...</Text>
-            <Text size="sm" c="dimmed" mt="xs">
-              Conectando con el servidor
-            </Text>
-          </Paper>
-        </motion.div>
+        <Paper shadow="sm" p="xl" radius="xl" style={{ textAlign: 'center', background: 'var(--mantine-color-body)' }}>
+          <Loader size="xl" color="blue" mb="md" />
+          <Text size="lg">Cargando noticias...</Text>
+        </Paper>
       ) : posts.length === 0 ? (
+        
+        // Empty state fallback
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -217,7 +165,7 @@ export default function BlogPage() {
           <Paper 
             shadow="xl" 
             radius="xl" 
-            p={60}
+            p={{ base: 'xl', md: 60 }} 
             style={{ 
               textAlign: 'center',
               background: 'var(--mantine-color-body)',
@@ -226,16 +174,15 @@ export default function BlogPage() {
                 : '2px dashed var(--mantine-color-gray-4)'
             }}
           >
-            <Title order={1} size={48} mb="md" style={{ color: '#75AADB' }}>
-              📰
-            </Title>
-            <Title order={2} mb="md">
+            <Title order={1} size={48} mb="md">📰</Title>
+            <Title order={2} mb="md" style={{ fontSize: 'clamp(24px, 5vw, 32px)' }}>
               Próximamente
             </Title>
             <Text size="lg" c="dimmed" mb="xl">
               Estamos preparando las primeras noticias de la comuna.
             </Text>
-            <Group justify="center" gap="md">
+            
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" style={{ maxWidth: 500, margin: '0 auto' }}>
               <Button
                 component={Link}
                 to="/reclamos"
@@ -244,6 +191,7 @@ export default function BlogPage() {
                 size="lg"
                 radius="xl"
                 leftSection={<IconMessages size={20} />}
+                fullWidth
               >
                 Ver Reclamos
               </Button>
@@ -255,17 +203,15 @@ export default function BlogPage() {
                 size="lg"
                 radius="xl"
                 leftSection={<IconMap size={20} />}
+                fullWidth
               >
                 Explorar Mapa
               </Button>
-            </Group>
+            </SimpleGrid>
           </Paper>
         </motion.div>
       ) : (
-        <SimpleGrid 
-          cols={{ base: 1, sm: 2, lg: 3 }}
-          spacing="xl"
-        >
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
           {posts.map((post) => (
             <PostCard key={post._id} post={post} />
           ))}

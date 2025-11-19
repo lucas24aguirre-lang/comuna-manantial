@@ -1,30 +1,24 @@
-// src/utils/uploadImage.js
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { storage } from '../firebase/config';
 
-
+/**
+ * Sube una imagen al storage de Firebase asociada a un reclamo
+ * @param {File} file - Archivo a subir
+ * @param {string} reclamoId - ID del reclamo para organizar la carpeta
+ */
 export const uploadReclamoImage = async (file, reclamoId) => {
   try {
-    // Validar tipo de archivo
     const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      throw new Error('Formato de imagen no válido. Usa JPG, PNG o WebP.');
-    }
+    if (!validTypes.includes(file.type)) throw new Error('Formato no válido (JPG, PNG, WebP).');
 
-    // Validar tamaño (máximo 5MB)
     const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      throw new Error('La imagen es muy grande. Máximo 5MB.');
-    }
+    if (file.size > maxSize) throw new Error('Imagen excede 5MB.');
 
-    // Crear referencia única
     const timestamp = Date.now();
     const fileName = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const storageRef = ref(storage, `reclamos/${reclamoId}/${fileName}`);
 
-    // Subir archivo
     const snapshot = await uploadBytes(storageRef, file);
-    
-    // Obtener URL de descarga
     const downloadURL = await getDownloadURL(snapshot.ref);
     
     return {
@@ -33,17 +27,21 @@ export const uploadReclamoImage = async (file, reclamoId) => {
       name: fileName
     };
   } catch (error) {
-    console.error('Error al subir imagen:', error);
+    console.error('Upload error:', error);
     throw error;
   }
 };
 
-// Función para eliminar imagen (cuando se borra un reclamo)
+/**
+ * Elimina una imagen del storage
+ * @param {string} imagePath - Ruta relativa en Firebase Storage
+ */
 export const deleteReclamoImage = async (imagePath) => {
+  if (!imagePath) return;
   try {
     const imageRef = ref(storage, imagePath);
     await deleteObject(imageRef);
   } catch (error) {
-    console.error('Error al eliminar imagen:', error);
+    console.error('Delete image error:', error);
   }
 };

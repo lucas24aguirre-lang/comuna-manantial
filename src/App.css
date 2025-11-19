@@ -1,13 +1,9 @@
-/* App.css - Tema Celeste Argentino */
-
-/* Background con gradiente celeste suave */
 body {
   background: linear-gradient(135deg, #f0f7fc 0%, #e8f2f9 100%);
   background-attachment: fixed;
   min-height: 100vh;
 }
 
-/* Patrón sutil de puntos celestes */
 body::before {
   content: '';
   position: fixed;
@@ -22,29 +18,24 @@ body::before {
   z-index: -1;
 }
 
-/* Suavizar transiciones globales */
 * {
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
-/* Mejorar scroll suave */
 html {
   scroll-behavior: smooth;
 }
 
-/* Mejorar selección de texto con celeste */
 ::selection {
   background-color: #75AADB;
   color: white;
 }
 
-/* Estilos para el contenido principal */
 main {
   position: relative;
   z-index: 1;
 }
 
-/* Animación de fade in */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -56,12 +47,10 @@ main {
   }
 }
 
-/* Clase helper para animaciones */
 .fade-in {
   animation: fadeIn 0.5s ease forwards;
 }
 
-/* Pulse animation para elementos importantes */
 @keyframes pulse-celeste {
   0%, 100% {
     box-shadow: 0 0 0 0 rgba(117, 170, 219, 0.7);
@@ -71,12 +60,10 @@ main {
   }
 }
 
-/* Aplicar animación a botones importantes */
 .pulse-celeste {
   animation: pulse-celeste 2s infinite;
 }
 
-/* Mejorar contraste en modo oscuro */
 [data-mantine-color-scheme="dark"] body::before {
   background-image: radial-gradient(circle, #437498 1px, transparent 1px);
   opacity: 0.2;
@@ -86,7 +73,6 @@ main {
   background: linear-gradient(135deg, #1a1f2e 0%, #252b3b 100%);
 }
 
-/* Scrollbar personalizado con celeste */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -109,7 +95,6 @@ main {
   background: linear-gradient(135deg, #437498 0%, #5385AD 100%);
 }
 
-/* Estilos para cards con borde celeste */
 .card-celeste {
   border: 2px solid transparent;
   transition: all 0.3s ease;
@@ -121,7 +106,6 @@ main {
   transform: translateY(-4px);
 }
 
-/* Botones con efecto glassmorphism celeste */
 .glass-celeste {
   background: rgba(117, 170, 219, 0.1);
   backdrop-filter: blur(10px);
@@ -133,7 +117,6 @@ main {
   border: 1px solid rgba(117, 170, 219, 0.4);
 }
 
-/* Mejora para inputs con foco celeste */
 input:focus, 
 textarea:focus, 
 select:focus {
@@ -141,7 +124,6 @@ select:focus {
   box-shadow: 0 0 0 2px rgba(117, 170, 219, 0.2) !important;
 }
 
-/* Badge personalizado celeste */
 .badge-celeste {
   background: linear-gradient(135deg, #75AADB 0%, #5385AD 100%);
   color: white;
@@ -151,7 +133,6 @@ select:focus {
   font-size: 0.85rem;
 }
 
-/* Links con color celeste */
 a {
   color: #5385AD;
   text-decoration: none;
@@ -162,7 +143,6 @@ a:hover {
   color: #75AADB;
 }
 
-/* Mejorar loading states con celeste */
 .loading-celeste {
   background: linear-gradient(90deg, 
     transparent, 
@@ -182,7 +162,6 @@ a:hover {
   }
 }
 
-/* Sombras celestes para elevación */
 .shadow-celeste-sm {
   box-shadow: 0 2px 8px rgba(117, 170, 219, 0.15);
 }
@@ -195,7 +174,6 @@ a:hover {
   box-shadow: 0 8px 32px rgba(117, 170, 219, 0.25);
 }
 
-/* Dividers con gradiente celeste */
 .divider-celeste {
   height: 2px;
   background: linear-gradient(90deg, 
@@ -207,7 +185,6 @@ a:hover {
   margin: 24px 0;
 }
 
-/* Footer con tono celeste */
 footer {
   background: linear-gradient(135deg, 
     rgba(117, 170, 219, 0.05) 0%, 

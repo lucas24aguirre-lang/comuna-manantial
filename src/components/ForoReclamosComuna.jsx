@@ -9,80 +9,35 @@ import React, {
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadReclamoImage, deleteReclamoImage } from '../utils/uploadImage';
-
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { auth, db, initAuth, appId } from '../firebase/config';
+import { PasswordInput, Modal, Card, Button, TextInput, Textarea, Select, Checkbox, Group, Badge, Box, Title, Text, ActionIcon, Alert, SimpleGrid, Container, Loader, Image, FileInput, useMantineColorScheme } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { 
-    Card, 
-    Button, 
-    TextInput, 
-    Textarea, 
-    Select, 
-    Checkbox, 
-    Group, 
-    Badge, 
-    Box,
-    Title,
-    Text,
-    ActionIcon,
-    Alert,
-    SimpleGrid,
-    Container,
-    Loader,
-    Image
-} from '@mantine/core';
-
-
-import { 
-    IconThumbUp, 
-    IconPencil, 
-    IconTrash, 
-    IconArrowsLeftRight, 
-    IconMessageCircle,
-    IconClock,
-    IconAlertCircle,
-    IconUpload,
-    IconCategory,
-    IconMapPin,
-    IconSearch,
-    IconSend,
-    IconChartBar,
-    IconCheck,
-    IconX,
-    IconArrowUp,
-    IconFileLike 
+    IconThumbUp, IconPencil, IconTrash, IconArrowsLeftRight, IconMessageCircle, 
+    IconClock, IconAlertCircle, IconUpload, IconCategory, IconMapPin, 
+    IconSearch, IconSend, IconChartBar, IconCheck, IconX, IconArrowUp, IconFileLike 
 } from '@tabler/icons-react';
-
-
-import { db, initAuth, appId } from '../firebase/config';
 import { 
-    collection, 
-    query, 
-    orderBy, 
-    onSnapshot,
-    addDoc,
-    doc,
-    updateDoc,
-    deleteDoc,
-    serverTimestamp,
-    increment,
-    arrayUnion
+    collection, query, orderBy, onSnapshot, addDoc, doc, updateDoc, 
+    deleteDoc, serverTimestamp, increment, arrayUnion 
 } from 'firebase/firestore';
 
-
-
+// Configuración general y constantes del sistema
 const CONFIG = {
-
     PAGE_SIZE: 6,
-
     CATEGORIES: ["Servicios Públicos", "Seguridad", "Transporte", "Salud", "Educación", "Ambiente", "Otros"],
-    MAX_IMAGE_SIZE_BYTES: 1024 * 1024
+    MAX_IMAGE_SIZE_BYTES: 5 * 1024 * 1024  // 5MB
 };
 
-
+// Email autorizado para funciones administrativas
+const ADMIN_EMAIL = "lucas24aguirre@gmail.com"; 
 
 const utils = {
     uid: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
     nowISO: () => new Date().toISOString(),
     
+    // Genera y descarga un archivo CSV en el cliente
     downloadFile: (filename, text, mimeType) => {
         const blob = new Blob([text], { type: mimeType });
         const url = URL.createObjectURL(blob);
@@ -95,6 +50,7 @@ const utils = {
         URL.revokeObjectURL(url);
     },
 
+    // Convierte los datos de reclamos a formato CSV
     toCSV: (data) => {
         const escapeCSV = (value) => `"${(value || "").replace(/"/g, '""')}"`;
         const header = ["id", "title", "category", "location", "status", "votes", "createdAt", "updatedAt", "comments_count", "has_image"];
@@ -108,9 +64,7 @@ const utils = {
     }
 };
 
-
-
-
+// Custom hook para manejo de notificaciones tipo Toast
 const useToast = () => {
     const [toast, setToast] = useState(null);
     const timerRef = useRef(null);
@@ -124,13 +78,9 @@ const useToast = () => {
     return [toast, pushToast];
 };
 
-
-
 const initialFormState = {
     id: null, title: "", category: CONFIG.CATEGORIES[0], location: "", 
-    description: "", anonymous: false, 
-    image: null, 
-    imageFileRef: null 
+    description: "", anonymous: false, image: null, imageFileRef: null 
 };
 
 const formReducer = (state, action) => {
@@ -140,63 +90,53 @@ const formReducer = (state, action) => {
         case 'SET_FORM':
             return { ...initialFormState, ...action.payload };
         case 'RESET':
-            if (state.image && state.image.startsWith('blob:')) {
-            }
             return initialFormState; 
         default:
             return state;
     }
 };
 
-
-
 const ComplaintContext = React.createContext();
 
 export const useComplaintContext = () => {
     const context = useContext(ComplaintContext);
-    if (!context) {
-        throw new Error('useComplaintContext must be used within a ComplaintProvider');
-    }
+    if (!context) throw new Error('useComplaintContext must be used within a ComplaintProvider');
     return context;
 };
 
-
-
 const ComplaintProvider = ({ children }) => {
-
     const [complaints, setComplaints] = useState([]);
     const [loading, setLoading] = useState(true);
-
     const [form, dispatchForm] = useReducer(formReducer, initialFormState);
     const [filters, setFilters] = useState({ 
-        search: "", 
-        category: "Todas las categorías",
-        status: "Todos los estados", 
-        sortBy: "fecha_desc" 
+        search: "", category: "Todas las categorías", status: "Todos los estados", sortBy: "fecha_desc" 
     });
     const [ui, setUi] = useState({ 
-        isAdmin: false, 
-        pageSize: CONFIG.PAGE_SIZE, 
-        page: 1, 
-        showStats: false 
+        isAdmin: false, pageSize: CONFIG.PAGE_SIZE, page: 1, showStats: false 
     });
     const [toast, pushToast] = useToast();
     const voteTimestamps = useRef({});
 
-
-
+    // Inicialización de Auth y Listeners de Firestore
     useEffect(() => {
         const initialize = async () => {
             await initAuth();
-            
+
+            // Verificación de permisos de administrador
+            const unsubscribeAuth = auth.onAuthStateChanged(user => {
+                if (user && user.email === ADMIN_EMAIL) {
+                    setUi(prev => ({ ...prev, isAdmin: true }));
+                } else {
+                    setUi(prev => ({ ...prev, isAdmin: false }));
+                }
+            });
+
+            // Listener en tiempo real para los reclamos
             const collectionPath = `artifacts/${appId}/public/data/complaints`;
             const complaintsCollection = collection(db, collectionPath);
-            
-
             const q = query(complaintsCollection, orderBy("createdAt", "desc"));
 
-
-            const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
                 const complaintsList = querySnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
@@ -204,25 +144,20 @@ const ComplaintProvider = ({ children }) => {
                 setComplaints(complaintsList);
                 setLoading(false);
             }, (error) => {
-                console.error("Error al escuchar los reclamos:", error);
+                console.error("Error fetching data:", error);
                 setLoading(false);
             });
 
-
-            return () => unsubscribe();
+            return () => {
+                unsubscribeAuth();
+                unsubscribeSnapshot();
+            };
         };
 
         initialize();
     }, []);
 
-
-
     const collectionPath = `artifacts/${appId}/public/data/complaints`;
-
-    const enableAdmin = useCallback(() => {
-        setUi(prev => ({ ...prev, isAdmin: !prev.isAdmin }));
-        pushToast(ui.isAdmin ? "❌ Modo administrador desactivado" : "✅ Modo administrador activado");
-    }, [ui.isAdmin, pushToast]);
 
     const onFilterChange = useCallback((field, value) => {
         setFilters(prev => ({ ...prev, [field]: value }));
@@ -230,235 +165,171 @@ const ComplaintProvider = ({ children }) => {
     }, []);
 
     const complaintActions = useMemo(() => ({
-
-save: async (e) => {
-    e?.preventDefault();
-    
-    if (!form.title.trim() || form.title.length > 100) {
-        return pushToast("❌ Título obligatorio (máx 100 caracteres)");
-    }
-    if (!form.description.trim() || form.description.length > 1000) {
-        return pushToast("❌ Descripción obligatoria (máx 1000 caracteres)");
-    }
-
-    try {
-        pushToast("⏳ Guardando reclamo...");
-
-
-        const complaintToSave = {
-            title: form.title,
-            category: form.category,
-            location: form.location,
-            description: form.description,
-            anonymous: form.anonymous,
-            updatedAt: serverTimestamp(),
-        };
-
-        if (form.id) {
-
-            const docRef = doc(db, collectionPath, form.id);
+        save: async (e) => {
+            e?.preventDefault();
             
+            if (!form.title.trim() || form.title.length > 100) return pushToast("⌛ Título obligatorio (máx 100 caracteres)");
+            if (!form.description.trim() || form.description.length > 1000) return pushToast("⌛ Descripción obligatoria (máx 1000 caracteres)");
 
-            if (form.image && form.image.startsWith('data:')) {
+            try {
+                pushToast("⏳ Procesando solicitud...");
 
-                const response = await fetch(form.image);
-                const blob = await response.blob();
-                const file = new File([blob], 'image.jpg', { type: 'image/jpeg' });
-                
+                const complaintToSave = {
+                    title: form.title,
+                    category: form.category,
+                    location: form.location,
+                    description: form.description,
+                    anonymous: form.anonymous,
+                    updatedAt: serverTimestamp(),
+                };
 
-                const imageData = await uploadReclamoImage(file, form.id);
-                complaintToSave.imageUrl = imageData.url;
-                complaintToSave.imagePath = imageData.path;
+                // Lógica para manejo de imagen y guardado/actualización
+                if (form.id) {
+                    const docRef = doc(db, collectionPath, form.id);
+                    if (form.image && form.image.startsWith('data:')) {
+                        const response = await fetch(form.image);
+                        const blob = await response.blob();
+                        const file = new File([blob], 'image.jpg', { type: 'image/jpeg' });
+                        const imageData = await uploadReclamoImage(file, form.id);
+                        complaintToSave.imageUrl = imageData.url;
+                        complaintToSave.imagePath = imageData.path;
+                    }
+                    await updateDoc(docRef, complaintToSave);
+                    pushToast("✅ Reclamo actualizado con éxito");
+                } else {
+                    const tempId = `temp_${Date.now()}`;
+                    if (form.image && form.image.startsWith('data:')) {
+                        const response = await fetch(form.image);
+                        const blob = await response.blob();
+                        const file = new File([blob], 'image.jpg', { type: 'image/jpeg' });
+                        const imageData = await uploadReclamoImage(file, tempId);
+                        complaintToSave.imageUrl = imageData.url;
+                        complaintToSave.imagePath = imageData.path;
+                    }
+                    await addDoc(collection(db, collectionPath), {
+                        ...complaintToSave,
+                        status: "Abierto",
+                        votes: 0,
+                        votadoPor: [],
+                        comments: [],
+                        createdAt: serverTimestamp(),
+                    });
+                    pushToast("🚀 Reclamo publicado con éxito");
+                }
+                dispatchForm({ type: 'RESET' });
+            } catch (error) {
+                console.error("Error saving complaint:", error);
+                pushToast("⌛ Error: " + (error.message || "No se pudo guardar"));
             }
-            
-            await updateDoc(docRef, complaintToSave);
-            pushToast("✅ Reclamo actualizado con éxito");
-            
-        } else {
-
-            
-
-            const tempId = `temp_${Date.now()}`;
-            
-
-            if (form.image && form.image.startsWith('data:')) {
-                const response = await fetch(form.image);
-                const blob = await response.blob();
-                const file = new File([blob], 'image.jpg', { type: 'image/jpeg' });
-                
-                const imageData = await uploadReclamoImage(file, tempId);
-                complaintToSave.imageUrl = imageData.url;
-                complaintToSave.imagePath = imageData.path;
-            }
-            
-
-            await addDoc(collection(db, collectionPath), {
-                ...complaintToSave,
-                status: "Abierto",
-                votes: 0,
-                votadoPor: [],
-                comments: [],
-                createdAt: serverTimestamp(),
-            });
-            
-            pushToast("🚀 Reclamo publicado con éxito");
-        }
-        
-        dispatchForm({ type: 'RESET' });
-        
-    } catch (error) {
-        console.error("Error al guardar el reclamo:", error);
-        pushToast("❌ Error: " + (error.message || "No se pudo guardar"));
-    }
-},
+        },
         
         onImageChange: (file) => {
-
-            if (!file) {
-                return dispatchForm({ type: 'SET_FIELD', field: 'image', value: null });
-            }
+            if (!file) return dispatchForm({ type: 'SET_FIELD', field: 'image', value: null });
             if (file.size > CONFIG.MAX_IMAGE_SIZE_BYTES) {
-                pushToast(`❌ El archivo es muy grande. Máximo: ${CONFIG.MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB`);
+                pushToast(`⌛ Archivo excede el límite de ${CONFIG.MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB`);
                 return dispatchForm({ type: 'SET_FIELD', field: 'image', value: null });
             }
             const reader = new FileReader();
-            reader.onload = (e) => {
-                dispatchForm({ type: 'SET_FIELD', field: 'image', value: e.target.result });
-            };
+            reader.onload = (e) => dispatchForm({ type: 'SET_FIELD', field: 'image', value: e.target.result });
             reader.readAsDataURL(file);
         },
 
         onEdit: (complaint) => {
-
             dispatchForm({ type: 'SET_FORM', payload: complaint });
-            pushToast(`✏️ Editando reclamo: ${complaint.title}`);
+            pushToast(`✏️ Editando: ${complaint.title}`);
         },
 
         onVote: async (id) => {
+            // Debounce simple para evitar spam de votos
             const lastVote = voteTimestamps.current[id] || 0;
-            if (Date.now() - lastVote < 60000) { 
-                return pushToast("⏳ Debes esperar 1 minuto para votar de nuevo.");
-            }
+            if (Date.now() - lastVote < 60000) return pushToast("⏳ Espera 1 minuto para votar nuevamente.");
 
             try {
-                const docRef = doc(db, collectionPath, id);
-                await updateDoc(docRef, {
-                    votes: increment(1)
-                });
+                await updateDoc(doc(db, collectionPath, id), { votes: increment(1) });
                 voteTimestamps.current[id] = Date.now(); 
                 pushToast("👍 Voto registrado.");
             } catch (error) {
-                console.error("Error al votar:", error);
-                pushToast("❌ Error al registrar el voto.");
+                console.error("Vote error:", error);
             }
         },
 
         onToggleStatus: async (id, currentStatus) => {
-
-    const statusCycle = {
-        "Abierto": "En Proceso",
-        "En Proceso": "Resuelto",
-        "Resuelto": "Abierto"
-    };
-    
-    const newStatus = statusCycle[currentStatus] || "Abierto";
-    
-    try {
-        const docRef = doc(db, collectionPath, id);
-        await updateDoc(docRef, {
-            status: newStatus,
-            updatedAt: serverTimestamp()
-        });
-        pushToast(`🔄 Estado cambiado a: ${newStatus}`);
-    } catch (error) {
-        console.error("Error al cambiar estado:", error);
-        pushToast("❌ Error al cambiar el estado.");
-    }
-},
-
-        onAddComment: async (id, text) => {
-            if (!text.trim()) return;
-            const newComment = {
-                id: utils.uid(),
-                text,
-                createdAt: serverTimestamp()
-            };
+            const statusCycle = { "Abierto": "En Proceso", "En Proceso": "Resuelto", "Resuelto": "Abierto" };
+            const newStatus = statusCycle[currentStatus] || "Abierto";
             try {
-                const docRef = doc(db, collectionPath, id);
-                await updateDoc(docRef, {
-                    comments: arrayUnion(newComment)
-                });
-                pushToast("💬 Comentario añadido.");
+                await updateDoc(doc(db, collectionPath, id), { status: newStatus, updatedAt: serverTimestamp() });
+                pushToast(`🔄 Nuevo estado: ${newStatus}`);
             } catch (error) {
-                console.error("Error al comentar:", error);
-                pushToast("❌ Error al añadir comentario.");
+                console.error("Status update error:", error);
             }
         },
 
-        onDelete: async (id) => {
-    if (!window.confirm('¿Estás seguro de eliminar este reclamo permanentemente?')) {
-        return;
-    }
-    
+        onAddComment: async (id, text) => {
+    if (!text.trim()) return;
     try {
-
-        const complaint = complaints.find(c => c.id === id);
+        const currentUser = auth.currentUser;
         
-
-        if (complaint?.imagePath) {
-            await deleteReclamoImage(complaint.imagePath);
-        }
+        const newComment = {
+            id: utils.uid(),
+            text,
+            createdAt: new Date(), 
+            user: {
+                uid: currentUser?.uid || 'anonymous',
+                email: currentUser?.email || null,
+                displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Usuario Anónimo',
+                isAdmin: currentUser?.email === ADMIN_EMAIL
+            }
+        };
         
-
-        const docRef = doc(db, collectionPath, id);
-        await deleteDoc(docRef);
+        await updateDoc(doc(db, collectionPath, id), {
+            comments: arrayUnion(newComment)
+        });
         
-        pushToast("🗑️ Reclamo eliminado permanentemente.");
+        pushToast("💬 Comentario añadido.");
     } catch (error) {
-        console.error("Error al eliminar:", error);
-        pushToast("❌ Error al eliminar el reclamo.");
+        console.error("Comment error:", error);
+        pushToast("❌ Error al comentar");
     }
 },
 
-
+        onDelete: async (id) => {
+            if (!window.confirm('¿Confirmar eliminación permanente?')) return;
+            try {
+                const complaint = complaints.find(c => c.id === id);
+                if (complaint?.imagePath) await deleteReclamoImage(complaint.imagePath);
+                await deleteDoc(doc(db, collectionPath, id));
+                pushToast("🗑️ Reclamo eliminado.");
+            } catch (error) {
+                console.error("Delete error:", error);
+            }
+        },
         
         onExport: () => {
-
             utils.downloadFile(`reclamos_${utils.nowISO()}.csv`, utils.toCSV(complaints), "text/csv");
-            pushToast("💾 Datos exportados a CSV.");
+            pushToast("💾 Exportación completada.");
         }
     }), [form, pushToast, complaints, collectionPath]);
-
-
     
+    // Filtrado y ordenamiento en cliente
     const filteredAndSortedComplaints = useMemo(() => {
-        let result = complaints;
-        const { search, category, status, sortBy } = filters;
-        
-        result = result.filter(c => {
-            const matchesSearch = c.title.toLowerCase().includes(search.toLowerCase()) || 
-                                  c.description.toLowerCase().includes(search.toLowerCase());
-            const matchesCategory = category === "Todas las categorías" || c.category === category;
-            const matchesStatus = status === "Todos los estados" || c.status === status;
+        let result = complaints.filter(c => {
+            const matchesSearch = c.title.toLowerCase().includes(filters.search.toLowerCase()) || 
+                                  c.description.toLowerCase().includes(filters.search.toLowerCase());
+            const matchesCategory = filters.category === "Todas las categorías" || c.category === filters.category;
+            const matchesStatus = filters.status === "Todos los estados" || c.status === filters.status;
             return matchesSearch && matchesCategory && matchesStatus;
         });
 
-
         result.sort((a, b) => {
-            switch (sortBy) {
-                case "fecha_asc":
-                    return a.createdAt?.toDate() - b.createdAt?.toDate();
-                case "votos":
-                    return (b.votes || 0) - (a.votes || 0);
-                case "fecha_desc":
-                default:
-                    return b.createdAt?.toDate() - a.createdAt?.toDate();
-            }
+            if (filters.sortBy === "fecha_asc") return a.createdAt?.toDate() - b.createdAt?.toDate();
+            if (filters.sortBy === "votos") return (b.votes || 0) - (a.votes || 0);
+            return b.createdAt?.toDate() - a.createdAt?.toDate();
         });
         
         return result;
     }, [complaints, filters]);
     
+    // Paginación
     const totalPages = Math.ceil(filteredAndSortedComplaints.length / ui.pageSize);
     const startIndex = (ui.page - 1) * ui.pageSize;
     const paginatedComplaints = filteredAndSortedComplaints.slice(startIndex, startIndex + ui.pageSize);
@@ -470,63 +341,27 @@ save: async (e) => {
         totalVotes: complaints.reduce((sum, c) => sum + (c.votes || 0), 0)
     }), [complaints]);
 
-
-
     const contextValue = useMemo(() => ({
+        complaints, loading, form, dispatchForm, filters, setFilters: onFilterChange, 
+        ui, setUi, toast, pushToast, complaintActions, paginatedComplaints, totalPages, stats
+    }), [complaints, loading, form, filters, ui, toast, pushToast, complaintActions, paginatedComplaints, totalPages, stats, onFilterChange]);
 
-        complaints,
-        loading,
-        form,
-        dispatchForm,
-        filters,
-        setFilters: onFilterChange, 
-        ui,
-        setUi,
-        toast,
-        pushToast,
-        enableAdmin,
-        complaintActions,
-        paginatedComplaints,
-        totalPages,
-        stats
-    }), [complaints, loading, form, filters, ui, toast, pushToast, enableAdmin, complaintActions, paginatedComplaints, totalPages, stats, onFilterChange]);
-
-    return (
-        <ComplaintContext.Provider value={contextValue}>
-            {children}
-        </ComplaintContext.Provider>
-    );
+    return <ComplaintContext.Provider value={contextValue}>{children}</ComplaintContext.Provider>;
 };
 
-
-
-
-
-
+// Componentes de UI auxiliares
 const Toast = () => {
     const { toast } = useComplaintContext();
     return (
         <AnimatePresence>
             {toast && (
                 <motion.div
-                    initial={{ opacity: 0, y: 50, scale: 0.9 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 50, scale: 0.9 }}
-                    transition={{ duration: 0.3 }}
-                    style={{
-                        position: 'fixed',
-                        bottom: 20,
-                        right: 20,
-                        zIndex: 1000,
-                        maxWidth: 300
-                    }}
+                    initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 50, scale: 0.9 }} transition={{ duration: 0.3 }}
+                    style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 1000, maxWidth: 300 }}
                 >
-                    <Alert 
-                        variant="filled" 
-                        color="teal" 
-                        icon={<IconAlertCircle size={20} />} 
-                        radius="md"
-                    >
+                    <Alert variant="filled" icon={<IconAlertCircle size={20} />} radius="md"
+                        style={{ background: 'linear-gradient(135deg, #75AADB 0%, #5385AD 100%)', boxShadow: '0 8px 24px rgba(117, 170, 219, 0.4)' }}>
                         {toast}
                     </Alert>
                 </motion.div>
@@ -535,39 +370,17 @@ const Toast = () => {
     );
 };
 
-
 const CommentBox = ({ complaintId }) => {
     const { complaintActions } = useComplaintContext();
     const [txt, setTxt] = useState("");
-    
     return (
         <Group wrap="nowrap" mt="md" w="100%">
-            <Textarea 
-                value={txt} 
-                onChange={e => setTxt(e.target.value)} 
-                placeholder="Escribe un comentario..." 
-                minRows={1}
-                maxRows={4}
-                maxLength={500}
-                size="md"
-                radius="lg"
-                style={{ flexGrow: 1 }}
-                autosize
-            />
-            <Button 
-                onClick={() => { 
-                    if (txt.trim()) {
-                        complaintActions.onAddComment(complaintId, txt); 
-                        setTxt(""); 
-                    }
-                }} 
-                variant="gradient"
-                gradient={{ from: 'blue', to: 'cyan', deg: 105 }}
-                size="md"
-                radius="lg"
-                leftSection={<IconSend size={18} />}
-                disabled={!txt.trim()}
-            >
+            <Textarea value={txt} onChange={e => setTxt(e.target.value)} placeholder="Escribe un comentario..." 
+                minRows={1} maxRows={4} maxLength={500} size="md" radius="lg" style={{ flexGrow: 1 }} autosize
+                styles={{ input: { borderColor: '#75AADB', '&:focus': { borderColor: '#5385AD' } } }} />
+            <Button onClick={() => { if (txt.trim()) { complaintActions.onAddComment(complaintId, txt); setTxt(""); } }} 
+                variant="gradient" gradient={{ from: '#75AADB', to: '#5385AD', deg: 105 }} size="md" radius="lg" 
+                leftSection={<IconSend size={18} />} disabled={!txt.trim()}>
                 Enviar
             </Button>
         </Group>
@@ -578,222 +391,66 @@ const FilterRow = () => {
     const { filters, setFilters, complaintActions } = useComplaintContext();
     const categoryOptions = [{ value: "Todas las categorías", label: "Todas las categorías" }, ...CONFIG.CATEGORIES.map(c => ({ value: c, label: c }))];
     const statusOptions = [{ value: "Todos los estados", label: "Todos los estados" }, { value: "Abierto", label: "Abierto" }, { value: "Resuelto", label: "Resuelto" }];
-    const sortOptions = [
-        { value: "fecha_desc", label: "📅 Más reciente" },
-        { value: "fecha_asc", label: "📅 Más antiguo" },
-        { value: "votos", label: "👍 Más votados" }
-    ];
+    const sortOptions = [{ value: "fecha_desc", label: "📅 Más reciente" }, { value: "fecha_asc", label: "📅 Más antiguo" }, { value: "votos", label: "👍 Más votados" }];
 
     return (
         <Group align="flex-end" wrap="wrap" w="100%">
-            <TextInput 
-                leftSection={<IconSearch size={18} />}
-                placeholder="Buscar en reclamos..." 
-                value={filters.search} 
-                onChange={e => setFilters('search', e.target.value)} 
-                size="lg"
-                style={{ flexGrow: 1, minWidth: '200px' }} 
-            />
-            
-            <Select 
-                placeholder="Categoría"
-                data={categoryOptions}
-                value={filters.category} 
-                onChange={value => setFilters('category', value)} 
-                size="lg"
-                style={{ minWidth: '180px' }}
-            />
-            
-            <Select 
-                placeholder="Estado"
-                data={statusOptions}
-                value={filters.status} 
-                onChange={value => setFilters('status', value)} 
-                size="lg"
-                style={{ minWidth: '180px' }}
-            />
-            
-            <Select 
-                placeholder="Ordenar por"
-                data={sortOptions}
-                value={filters.sortBy} 
-                onChange={value => setFilters('sortBy', value)} 
-                size="lg"
-                style={{ minWidth: '180px' }}
-            />
-            
-            <Group gap="xs">
-                {/*
-
-                <ActionIcon 
-                    variant="default" 
-                    size="lg" 
-                    onClick={() => complaintActions.onExport('JSON')}
-                    title="Exportar a JSON"
-                >
-                    <IconFileLike size={20} color="orange" />
-                </ActionIcon> 
-                */}
-                <ActionIcon 
-                    variant="default" 
-                    size="lg" 
-                    onClick={() => complaintActions.onExport('CSV')}
-                    title="Exportar a CSV"
-                >
-                    <IconFileLike size={20} color="green" />
-                </ActionIcon>
-            </Group>
+            <TextInput leftSection={<IconSearch size={18} />} placeholder="Buscar en reclamos..." value={filters.search} 
+                onChange={e => setFilters('search', e.target.value)} size="lg" radius="lg" style={{ flexGrow: 1, minWidth: '200px' }} />
+            <Select placeholder="Categoría" data={categoryOptions} value={filters.category} onChange={value => setFilters('category', value)} size="lg" radius="lg" style={{ minWidth: '180px' }} />
+            <Select placeholder="Estado" data={statusOptions} value={filters.status} onChange={value => setFilters('status', value)} size="lg" radius="lg" style={{ minWidth: '180px' }} />
+            <Select placeholder="Ordenar por" data={sortOptions} value={filters.sortBy} onChange={value => setFilters('sortBy', value)} size="lg" radius="lg" style={{ minWidth: '180px' }} />
+            <ActionIcon variant="light" size="xl" radius="lg" color="teal" onClick={() => complaintActions.onExport('CSV')} title="Exportar a CSV"><IconFileLike size={22} /></ActionIcon>
         </Group>
     );
 };
 
-
-
-
 const ComplaintForm = () => { 
-
     const { form, dispatchForm, complaintActions, pushToast } = useComplaintContext();
+    const { colorScheme } = useMantineColorScheme();
+    const isDark = colorScheme === 'dark';
     const setField = (field, value) => dispatchForm({ type: 'SET_FIELD', field, value });
-    const categoryOptions = CONFIG.CATEGORIES.map(c => ({ value: c, label: c }));
-
-    const handleImageChange = (file) => {
-        if (!file) {
-            dispatchForm({ type: 'SET_FIELD', field: 'image', value: null }); 
-            return;
-        }
-
-        if (file.size > CONFIG.MAX_IMAGE_SIZE_BYTES) {
-            pushToast(`❌ El archivo es muy grande. Máximo: ${CONFIG.MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB`);
-            dispatchForm({ type: 'SET_FIELD', field: 'image', value: null });
-            return;
-        }
-        
-        complaintActions.onImageChange(file);
-    };
-
+    
     return (
-        <motion.form 
-            onSubmit={complaintActions.save}
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-        >
-            <Card 
-                shadow="xl" 
-                padding="xl" 
-                radius="lg" 
-                withBorder 
-                style={{ backgroundColor: 'var(--mantine-color-body)', opacity: 0.95 }}
-            >
-                <Title order={2} mb="lg" ta="center">
-                    {form.id ? "✏️ Editando Reclamo" : "📝 Crear Nuevo Reclamo"}
-                </Title>
-                
-                <div className="space-y-6">
-                    
-                    <TextInput 
-                        label="¿Cuál es el problema? *"
-                        placeholder="Ej: Semáforo roto en Av. Principal"
-                        value={form.title} 
-                        onChange={e => setField('title', e.target.value)}
-                        maxLength={100}
-                        size="lg"
-                        rightSection={<Text size="sm" c="dimmed">{form.title.length}/100</Text>}
-                        required
-                    />
-
-                    <Select 
-                        label="Categoría *"
-                        placeholder="Selecciona una categoría"
-                        data={categoryOptions}
-                        value={form.category} 
-                        onChange={value => setField('category', value)} 
-                        size="lg"
-                        leftSection={<IconCategory size={18} />}
-                        required
-                    />
-
-                    <Group grow align="flex-end">
-                        <TextInput 
-                            label="📍 Ubicación (Opcional)"
-                            placeholder="Ej: Esquina de Calle Falsa 123"
-                            value={form.location} 
-                            onChange={e => setField('location', e.target.value)}
-                            leftSection={<IconMapPin size={18} />}
-                        />
-                        
-                        <Checkbox
-                            label="Publicar como Anónimo" 
-                            checked={form.anonymous} 
-                            onChange={e => setField('anonymous', e.target.checked)}
-                            size="md"
-                        />
-                    </Group>
-
-                    <Textarea 
-                        label="Describe el problema en detalle... *"
-                        placeholder="✍️ Proporciona detalles específicos para ayudar a solucionarlo."
-                        value={form.description} 
-                        onChange={e => setField('description', e.target.value)}
-                        rows={4}
-                        maxLength={1000}
-                        rightSection={<Text size="sm" c="dimmed" style={{ alignSelf: 'flex-start', marginTop: '4px' }}>{form.description.length}/1000</Text>}
-                        required
-                    />
-                    
+        <motion.form onSubmit={complaintActions.save} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}>
+            <Card shadow="xl" padding="xl" radius="xl" withBorder style={{ background: 'var(--mantine-color-body)', borderColor: isDark ? 'rgba(117, 170, 219, 0.2)' : 'rgba(117, 170, 219, 0.3)', borderWidth: 2 }}>
+                <Box style={{ background: isDark ? 'linear-gradient(135deg, #334155 0%, #1e293b 100%)' : 'linear-gradient(135deg, #75AADB 0%, #5385AD 100%)', borderRadius: 16, padding: '24px', marginBottom: '24px', color: 'white', textAlign: 'center' }}>
+                    <Title order={2} style={{ textShadow: '0 2px 8px rgba(0,0,0,0.2)', fontSize: 'clamp(22px, 5vw, 32px)', lineHeight: 1.2 }}>
+                        {form.id ? "✏️ Editando Reclamo" : "📢 Crear Nuevo Reclamo"}
+                    </Title>
+                </Box>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <TextInput label="¿Cuál es el problema? *" placeholder="Ej: Semáforo roto en Av. Principal" value={form.title} onChange={e => setField('title', e.target.value)} maxLength={100} size="lg" radius="lg" rightSection={<Text size="sm" c="dimmed">{form.title.length}/100</Text>} required />
+                    <Select label="Categoría *" placeholder="Selecciona una categoría" data={CONFIG.CATEGORIES.map(c => ({ value: c, label: c }))} value={form.category} onChange={value => setField('category', value)} size="lg" radius="lg" leftSection={<IconCategory size={18} />} required />
+                    <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" verticalSpacing="xs">
+                        <TextInput label="📍 Ubicación (Opcional)" placeholder="Ej: Esquina calle..." value={form.location} onChange={e => setField('location', e.target.value)} leftSection={<IconMapPin size={18} />} radius="lg" size="md" />
+                        <Box style={{ display: 'flex', alignItems: 'center', height: '100%', paddingTop: 8 }}>
+                            <Checkbox label="Publicar como Anónimo" checked={form.anonymous} onChange={e => setField('anonymous', e.target.checked)} size="md" style={{ cursor: 'pointer' }} />
+                        </Box>
+                    </SimpleGrid>
+                    <Textarea label="Describe el problema en detalle... *" placeholder="✏️ Proporciona detalles específicos..." value={form.description} onChange={e => setField('description', e.target.value)} rows={4} maxLength={1000} radius="lg" rightSection={<Text size="sm" c="dimmed" style={{ alignSelf: 'flex-start', marginTop: '4px' }}>{form.description.length}/1000</Text>} required />
                     <Box>
-                        <Text size="sm" mb={4}>📸 Adjuntar Imagen (Evidencia - Máx 1MB)</Text>
-                        <input 
-                            type="file" 
-                            accept="image/*" 
-                            onChange={e => handleImageChange(e.target.files[0])}
-                            style={{
-                                display: 'block', 
-                                width: '100%', 
-                                padding: '12px', 
-                                border: '1px solid var(--mantine-color-gray-3)', 
-                                borderRadius: '8px',
-                                background: 'var(--mantine-color-body)'
-                            }}
-                        />
+                        <FileInput label="📸 Adjuntar Imagen (Evidencia - Máx 5MB)" placeholder="Click para subir foto" accept="image/*" leftSection={<IconUpload size={18} />} clearable value={null} 
+                            onChange={(file) => {
+                                if (!file) return dispatchForm({ type: 'SET_FIELD', field: 'image', value: null });
+                                if (file.size > CONFIG.MAX_IMAGE_SIZE_BYTES) {
+                                    pushToast(`⌛ Archivo muy grande. Máx: ${CONFIG.MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB`);
+                                    return dispatchForm({ type: 'SET_FIELD', field: 'image', value: null });
+                                }
+                                complaintActions.onImageChange(file);
+                            }} radius="lg" size="md" />
                     </Box>
-                    
                     {form.image && (
-                        <Alert 
-                            variant="light" 
-                            color="teal" 
-                            title="Imagen Cargada (Vista Previa)" 
-                            icon={<IconUpload size={20} />} 
-                            radius="md"
-                            withCloseButton
-                            onClose={() => handleImageChange(null)} 
-                        >
-                            <Group>
-                                <img 
-                                    src={form.image} 
-                                    alt="Vista previa" 
-                                    style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px' }}
-                                />
-                                <Text size="sm">Se usará esta imagen al publicar/guardar.</Text>
+                        <Alert variant="light" color="teal" title="Imagen lista" icon={<IconCheck size={20} />} radius="lg" withCloseButton onClose={() => dispatchForm({ type: 'SET_FIELD', field: 'image', value: null })}>
+                            <Group align="flex-start">
+                                <img src={form.image} alt="Preview" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.1)' }} />
+                                <Button variant="subtle" color="red" size="xs" compact mt={4} onClick={() => dispatchForm({ type: 'SET_FIELD', field: 'image', value: null })}>Quitar</Button>
                             </Group>
                         </Alert>
                     )}
-
                     <Group justify="flex-end" pt="md">
-                        {form.id && (
-                            <Button 
-                                variant="subtle" 
-                                color="gray"
-                                onClick={() => dispatchForm({ type: 'RESET' })} 
-                            >
-                                Cancelar
-                            </Button>
-                        )}
-                        <Button 
-                            type="submit" 
-                            variant="filled"
-                            color="blue"
-                            size="lg"
-                        >
+                        {form.id && <Button variant="subtle" color="gray" radius="lg" onClick={() => dispatchForm({ type: 'RESET' })}>Cancelar</Button>}
+                        <Button type="submit" variant="gradient" gradient={{ from: '#75AADB', to: '#5385AD', deg: 90 }} size="lg" radius="lg" style={{ boxShadow: '0 4px 16px rgba(117, 170, 219, 0.3)' }}>
                             {form.id ? "💾 Guardar Cambios" : "🚀 Publicar Reclamo"}
                         </Button>
                     </Group>
@@ -803,41 +460,40 @@ const ComplaintForm = () => {
     );
 };
 
-
 const StatsPanel = () => {
     const { stats, ui } = useComplaintContext();
-    
+    const { colorScheme } = useMantineColorScheme();
+    const isDark = colorScheme === 'dark';
     const dataCards = [
-        { title: "Total de Reclamos", value: stats.total.toString(), icon: IconChartBar, color: 'blue', description: 'Total de reclamos creados.' },
-        { title: "Reclamos Abiertos", value: stats.open.toString(), icon: IconX, color: 'red', description: 'Esperando solución o respuesta.' },
-        { title: "Reclamos Resueltos", value: stats.resolved.toString(), icon: IconCheck, color: 'green', description: 'Problemas que han sido solucionados.' },
-        { title: "Votos Totales", value: stats.totalVotes.toString(), icon: IconArrowUp, color: 'pink', description: 'Apoyo total de la comunidad.' }
+        { title: "Total de Reclamos", value: stats.total.toString(), icon: IconChartBar, gradient: { from: '#75AADB', to: '#5385AD' }, description: 'Total de reclamos creados.' },
+        { title: "Reclamos Abiertos", value: stats.open.toString(), icon: IconX, gradient: { from: '#ef4444', to: '#dc2626' }, description: 'Esperando solución.' },
+        { title: "Reclamos Resueltos", value: stats.resolved.toString(), icon: IconCheck, gradient: { from: '#10b981', to: '#059669' }, description: 'Problemas solucionados.' },
+        { title: "Votos Totales", value: stats.totalVotes.toString(), icon: IconArrowUp, gradient: { from: '#75AADB', to: '#5385AD' }, description: 'Apoyo comunitario.' }
     ];
 
-
-return (<AnimatePresence>{ui.isAdmin && (
-                <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    style={{ overflow: 'hidden', marginBottom: '24px' }}
-                >
-                    <Title order={2} ta="center" my="xl">Estadísticas Comunitarias</Title>
-                    <SimpleGrid 
-                        cols={{ base: 1, sm: 2, lg: 4 }} 
-                        spacing="lg" 
-                        verticalSpacing="lg"
-                    >
-                        {dataCards.map((item) => (
-                            <Card key={item.title} shadow="md" padding="xl" radius="lg" withBorder>
-                                <Group justify="space-between">
-                                    <Text size="lg" fw={500} c="dimmed">{item.title}</Text>
-                                    <item.icon size={30} style={{ color: `var(--mantine-color-${item.color}-6)` }} />
-                                </Group>
-
-                                <Text size="xl" fw={700} mt="md" mb="xs">{item.value}</Text>
-                                <Text size="sm" c="dimmed">{item.description}</Text>
-                            </Card>
+    return (
+        <AnimatePresence>
+            {ui.isAdmin && (
+                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} style={{ marginBottom: '32px', marginTop: '32px' }}>
+                    <Title order={2} ta="center" mb="xl" style={{ background: 'linear-gradient(135deg, #75AADB 0%, #5385AD 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                        📊 Estadísticas Comunitarias
+                    </Title>
+                    <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+                        {dataCards.map((item, index) => (
+                            <motion.div key={item.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.1 }} whileHover={{ y: -4 }}>
+                                <Card shadow="md" padding="lg" radius="lg" withBorder style={{ background: 'var(--mantine-color-body)', borderColor: isDark ? 'rgba(117, 170, 219, 0.2)' : 'rgba(117, 170, 219, 0.3)', borderWidth: 2, height: '100%' }}>
+                                    <Group justify="space-between" align="center" mb="md" wrap="nowrap">
+                                        <Box style={{ flex: 1 }}>
+                                            <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ letterSpacing: 0.5 }}>{item.title}</Text>
+                                            <Text size={36} fw={800} lh={1} style={{ background: `linear-gradient(135deg, ${item.gradient.from} 0%, ${item.gradient.to} 100%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{item.value}</Text>
+                                        </Box>
+                                        <Box style={{ background: `linear-gradient(135deg, ${item.gradient.from} 0%, ${item.gradient.to} 100%)`, borderRadius: '8px', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 12px ${item.gradient.from}40` }}>
+                                            <item.icon size={20} color="white" stroke={2.5} />
+                                        </Box>
+                                    </Group>
+                                    <Text size="xs" c="dimmed" lh={1.4} style={{ marginTop: 'auto' }}>{item.description}</Text>
+                                </Card>
+                            </motion.div>
                         ))}
                     </SimpleGrid>
                 </motion.div>
@@ -847,43 +503,22 @@ return (<AnimatePresence>{ui.isAdmin && (
 };
 
 const ComplaintsList = () => {
-
     const { paginatedComplaints, loading } = useComplaintContext();
-
-
-    if (loading) {
-        return (
-            <Group justify="center" mt="xl" p="xl">
-                <Loader color="blue" size="lg" />
-                <Text>Cargando reclamos...</Text>
-            </Group>
-        );
-    }
+    if (loading) return <Group justify="center" mt="xl" p="xl"><Loader color="#75AADB" size="lg" /><Text>Cargando reclamos...</Text></Group>;
 
     return (
-        <div className="space-y-6">
-            <Title order={2} ta="center" my="xl">Reclamos de la Comunidad</Title>
+        <div style={{ marginTop: 48 }}>
+            <Title order={2} ta="center" mb="xl" style={{ background: 'linear-gradient(135deg, #75AADB 0%, #5385AD 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                💬 Reclamos de la Comunidad
+            </Title>
             <AnimatePresence initial={false}>
                 {paginatedComplaints.length === 0 ? (
-                    <motion.div 
-                        key="empty"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className="text-center py-10"
-                    >
+                    <motion.div key="empty" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} style={{ textAlign: 'center', padding: '60px 0' }}>
                         <Title order={3} c="dimmed">0 reclamos encontrados</Title>
-                        <Text c="dimmed" mt="xs">No hay reclamos que coincidan con los filtros.</Text>
-                        <Text c="dimmed">¡Sé el primero en crear un reclamo!</Text>
+                        <Text c="dimmed" mt="xs">Sé el primero en crear un reclamo.</Text>
                     </motion.div>
                 ) : (
-                    paginatedComplaints.map((c, index) => (
-                        <ComplaintCard 
-                            key={c.id} 
-                            complaint={c} 
-                            index={index}
-                        />
-                    ))
+                    paginatedComplaints.map((c, index) => <ComplaintCard key={c.id} complaint={c} index={index} />)
                 )}
             </AnimatePresence>
         </div>
@@ -892,145 +527,110 @@ const ComplaintsList = () => {
 
 const ComplaintCard = ({ complaint: c, index }) => {
     const { ui, complaintActions } = useComplaintContext();
-    const isAdmin = ui.isAdmin;
-    
+    const { colorScheme } = useMantineColorScheme();
+    const isDark = colorScheme === 'dark';
     const [showComments, setShowComments] = useState(false);
 
     const statusMap = {
-    "Abierto": { color: 'red', text: '🔴 Abierto' },
-    "En Proceso": { color: 'blue', text: '🔵 En Proceso' },
-    "Resuelto": { color: 'green', text: '✅ Resuelto' },
-    "Rechazado": { color: 'gray', text: '⛔ Rechazado' }
-};
+        "Abierto": { color: '#f59e0b', gradient: { from: '#f59e0b', to: '#d97706' }, text: '🔴 Abierto', textColor: '#fff' },
+        "En Proceso": { color: '#3b82f6', gradient: { from: '#3b82f6', to: '#2563eb' }, text: '🔵 En Proceso', textColor: '#fff' },
+        "Resuelto": { color: '#10b981', gradient: { from: '#10b981', to: '#059669' }, text: '✅ Resuelto', textColor: '#fff' }
+    };
     const currentStatus = statusMap[c.status] || { color: 'gray', text: c.status };
 
-
-    const formatTime = (firebaseTimestamp) => {
-        if (!firebaseTimestamp?.toDate) {
-            return "fecha inválida";
-        }
-        const date = firebaseTimestamp.toDate();
-        return date.toLocaleDateString('es-AR') + ' ' + date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-    };
-
     return (
-        <motion.div 
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}
-        >
-            <Card shadow="md" padding="lg" radius="lg" withBorder>
-                <Group justify="space-between" mb="xs">
+        <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }} style={{ marginBottom: 24 }}>
+            <Card shadow="lg" padding="xl" radius="xl" withBorder style={{ transition: "all 0.3s ease", background: 'var(--mantine-color-body)', borderColor: isDark ? 'rgba(117, 170, 219, 0.2)' : 'rgba(117, 170, 219, 0.3)', borderWidth: 2, overflow: 'hidden' }}>
+                <Group justify="space-between" mb="md" wrap="wrap">
                     <Group gap="xs">
-                        <Badge color={currentStatus.color} size="lg" radius="sm">
-                            {currentStatus.text}
-                        </Badge>
-                        <Badge variant="light" color="blue" size="lg" radius="sm">
-                            {c.category}
-                        </Badge>
-                        <Text size="sm" c="dimmed">
-                            {c.anonymous ? 'Anónimo' : 'Público'}
-                        </Text>
+                        <Badge size="lg" radius="lg" style={{ background: `linear-gradient(135deg, ${currentStatus.gradient.from} 0%, ${currentStatus.gradient.to} 100%)`, color: currentStatus.textColor, border: 'none', fontWeight: 600, padding: '8px 16px', boxShadow: `0 4px 12px ${currentStatus.color}40` }}>{currentStatus.text}</Badge>
+                        <Badge variant="light" color="blue" size="lg" radius="lg" style={{ fontWeight: 600 }}>{c.category}</Badge>
+                        {c.anonymous && <Badge variant="outline" color="gray" size="md" radius="lg">👤 Anónimo</Badge>}
                     </Group>
-                    <Text size="sm" c="dimmed" fs="italic">
-                      <IconClock size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }}/> Publicado: {formatTime(c.createdAt)}
+                    <Text size="sm" c="dimmed" fs="italic" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <IconClock size={14} /> {c.createdAt?.toDate ? new Date(c.createdAt.toDate()).toLocaleDateString() : ''}
                     </Text>
                 </Group>
 
-                <Title order={3} my="sm">{c.title}</Title>
-                <Text size="md" mb="md" style={{ whiteSpace: 'pre-wrap' }}>{c.description}</Text>
-                
+                <Title order={3} mb="md" style={{ lineHeight: 1.3 }}>{c.title}</Title>
+                {c.location && <Text size="sm" c="dimmed" mb="sm" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><IconMapPin size={16} /> <strong>Ubicación:</strong> {c.location}</Text>}
+                <Text size="md" mb="md" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{c.description}</Text>
                 {c.imageUrl && (
-    <Box mb="md">
-        <Image
-            src={c.imageUrl}
-            alt="Evidencia del reclamo"
-            radius="md"
-            height={300}
-            fit="cover"
-            style={{ cursor: 'pointer' }}
-            onClick={() => window.open(c.imageUrl, '_blank')}
-        />
-        <Text size="xs" c="dimmed" mt="xs" ta="center">
-            Click para ver en tamaño completo
-        </Text>
-    </Box>
-)}
+                    <Box mb="md">
+                        <Image src={c.imageUrl} alt="Evidencia" radius="lg" height={300} fit="cover" style={{ cursor: 'pointer', border: '2px solid rgba(117, 170, 219, 0.2)' }} onClick={() => window.open(c.imageUrl, '_blank')} />
+                        <Text size="xs" c="dimmed" mt="xs" ta="center">Click para ampliar</Text>
+                    </Box>
+                )}
 
-                <Group justify="space-between" mt="md" wrap="nowrap">
+                <Group justify="space-between" mt="lg" wrap="wrap">
                     <Group>
-                        <Button 
-                            leftSection={<IconThumbUp size={18} />} 
-                            onClick={() => complaintActions.onVote(c.id)}
-                            variant="light"
-                            color="pink"
-                            size="md"
-                        >
-                            Votar ({c.votes || 0})
-                        </Button>
-                        <Button 
-                            leftSection={<IconMessageCircle size={18} />} 
-                            onClick={() => setShowComments(!showComments)}
-                            variant="subtle"
-                            color="gray"
-                            size="md"
-                        >
-                            Comentarios ({c.comments?.length || 0})
-                        </Button>
+                        <Button leftSection={<IconThumbUp size={18} />} onClick={() => complaintActions.onVote(c.id)} variant="gradient" gradient={{ from: '#75AADB', to: '#5385AD', deg: 90 }} size="md" radius="lg" style={{ boxShadow: '0 4px 12px rgba(117, 170, 219, 0.3)' }}>Votar ({c.votes || 0})</Button>
+                        <Button leftSection={<IconMessageCircle size={18} />} onClick={() => setShowComments(!showComments)} variant="light" color="blue" size="md" radius="lg">Comentarios ({c.comments?.length || 0})</Button>
                     </Group>
-
-                    {isAdmin && (
+                    {ui.isAdmin && (
                         <Group>
-                            <ActionIcon 
-                                variant="light" 
-                                color="orange" 
-                                size="lg" 
-                                onClick={() => complaintActions.onEdit(c)}
-                                title="Editar"
-                            >
-                                <IconPencil size={20} />
-                            </ActionIcon>
-                            <ActionIcon 
-                                variant="light" 
-                                color="teal" 
-                                size="lg" 
-                                onClick={() => complaintActions.onToggleStatus(c.id, c.status)}
-                                title={c.status === "Abierto" ? "Marcar Resuelto" : "Marcar Abierto"}
-                            >
-                                <IconArrowsLeftRight size={20} />
-                            </ActionIcon>
-                            <ActionIcon 
-                                variant="light" 
-                                color="red" 
-                                size="lg" 
-                                onClick={() => complaintActions.onDelete(c.id)}
-                                title="Eliminar"
-                            >
-                                <IconTrash size={20} />
-                            </ActionIcon>
+                            <ActionIcon variant="light" color="orange" size="lg" radius="lg" onClick={() => complaintActions.onEdit(c)} title="Editar"><IconPencil size={20} /></ActionIcon>
+                            <ActionIcon variant="light" color="teal" size="lg" radius="lg" onClick={() => complaintActions.onToggleStatus(c.id, c.status)} title="Cambiar Estado"><IconArrowsLeftRight size={20} /></ActionIcon>
+                            <ActionIcon variant="light" color="red" size="lg" radius="lg" onClick={() => complaintActions.onDelete(c.id)} title="Eliminar"><IconTrash size={20} /></ActionIcon>
                         </Group>
                     )}
                 </Group>
 
                 <AnimatePresence>
                     {showComments && (
-                        <motion.div 
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                            style={{ overflow: 'hidden', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--mantine-color-gray-3)' }}
-                        >
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} style={{ overflow: 'hidden', marginTop: '24px', paddingTop: '24px', borderTop: '2px solid rgba(117, 170, 219, 0.2)' }}>
                             {c.comments?.length > 0 ? (
-                                c.comments.map((comment) => (
-                                    <Text key={comment.id} size="sm" mt="xs" style={{ borderLeft: '3px solid var(--mantine-color-blue-3)', paddingLeft: '8px' }}>
-                                        <Badge color="gray" mr="xs" size="xs" variant="outline">{formatTime(comment.createdAt)}</Badge>
-                                        {comment.text}
-                                    </Text>
-                                ))
-                            ) : (
-                                <Text size="sm" c="dimmed">Aún no hay comentarios. ¡Sé el primero!</Text>
-                            )}
+    c.comments.map((comment) => (
+        <Box key={comment.id} p="md" mb="sm" style={{ borderLeft: '4px solid #75AADB', backgroundColor: isDark ? 'rgba(117, 170, 219, 0.05)' : 'rgba(117, 170, 219, 0.08)', borderRadius: '8px' }}>
+            <Group justify="space-between" mb="xs" wrap="wrap">
+                <Group gap="xs">
+                    <Box style={{ width: 32, height: 32, borderRadius: '50%', background: comment.user?.isAdmin ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : 'linear-gradient(135deg, #75AADB 0%, #5385AD 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px' }}>
+                        {comment.user?.isAdmin ? '👑' : (comment.user?.displayName?.[0]?.toUpperCase() || '?')}
+                    </Box>
+                    <Box>
+                        <Group gap={4}>
+                            <Text size="sm" fw={600}>{comment.user?.displayName || 'Usuario Anónimo'}</Text>
+                            {comment.user?.isAdmin && <Badge size="xs" variant="gradient" gradient={{ from: '#ef4444', to: '#dc2626' }}>ADMIN</Badge>}
+                        </Group>
+                        <Text size="xs" c="dimmed">
+    {(() => {
+        if (!comment.createdAt) return 'Justo ahora';
+        
+        try {
+            // Manejo robusto de diferentes formatos de fecha
+            let date;
+            
+            if (comment.createdAt.toDate) {
+                // Timestamp de Firestore
+                date = comment.createdAt.toDate();
+            } else if (comment.createdAt.seconds) {
+                // Objeto con seconds (Firestore sin método toDate)
+                date = new Date(comment.createdAt.seconds * 1000);
+            } else {
+                // Date de JavaScript normal
+                date = new Date(comment.createdAt);
+            }
+            
+            return date.toLocaleString('es-AR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (e) {
+            console.error('Error formateando fecha:', e);
+            return 'Hace un momento';
+        }
+    })()}
+</Text>
+                    </Box>
+                </Group>
+            </Group>
+            <Text size="sm" style={{ marginLeft: 40 }}>{comment.text}</Text>
+        </Box>
+    ))
+) : <Text size="sm" c="dimmed" ta="center" p="lg">Sin comentarios. ¡Sé el primero!</Text>}
                             <CommentBox complaintId={c.id} />
                         </motion.div>
                     )}
@@ -1042,114 +642,84 @@ const ComplaintCard = ({ complaint: c, index }) => {
 
 const Pagination = () => {
     const { ui, setUi, totalPages } = useComplaintContext();
-    const range = (start, end) => Array.from({ length: end - start + 1 }, (_, i) => i + start);
-    const maxPagesToShow = 5;
-    let startPage, endPage;
-
     if (totalPages <= 1) return null;
-
-    if (totalPages <= maxPagesToShow) {
-        startPage = 1;
-        endPage = totalPages;
-    } else if (ui.page <= Math.ceil(maxPagesToShow / 2)) {
-        startPage = 1;
-        endPage = maxPagesToShow;
-    } else if (ui.page + Math.floor(maxPagesToShow / 2) >= totalPages) {
-        startPage = totalPages - maxPagesToShow + 1;
-        endPage = totalPages;
-    } else {
-        startPage = ui.page - Math.floor(maxPagesToShow / 2);
-        endPage = ui.page + Math.floor(maxPagesToShow / 2);
-    }
-
-    const pages = range(startPage, endPage);
 
     return (
         <Group justify="center" my="xl">
-            <Button 
-                variant="default"
-                disabled={ui.page === 1}
-                onClick={() => setUi(prev => ({ ...prev, page: prev.page - 1 }))}
-            >
-                Anterior
-            </Button>
-
-            {startPage > 1 && (
-                <>
-                    <Button variant={ui.page === 1 ? 'filled' : 'default'} onClick={() => setUi(prev => ({ ...prev, page: 1 }))}>1</Button>
-                    {startPage > 2 && <Text>...</Text>}
-                </>
-            )}
-
-            {pages.map(p => (
-                <Button 
-                    key={p} 
-                    variant={ui.page === p ? 'filled' : 'default'}
-                    onClick={() => setUi(prev => ({ ...prev, page: p }))}
-                >
-                    {p}
-                </Button>
-            ))}
-
-            {endPage < totalPages && (
-                <>
-                    {endPage < totalPages - 1 && <Text>...</Text>}
-                    <Button variant={ui.page === totalPages ? 'filled' : 'default'} onClick={() => setUi(prev => ({ ...prev, page: totalPages }))}>{totalPages}</Button>
-                </>
-            )}
-
-            <Button 
-                variant="default"
-                disabled={ui.page === totalPages}
-                onClick={() => setUi(prev => ({ ...prev, page: prev.page + 1 }))}
-            >
-                Siguiente
-            </Button>
+            <Button variant="light" color="blue" radius="lg" disabled={ui.page === 1} onClick={() => setUi(prev => ({ ...prev, page: prev.page - 1 }))}>←</Button>
+            <Text>Página {ui.page} de {totalPages}</Text>
+            <Button variant="light" color="blue" radius="lg" disabled={ui.page === totalPages} onClick={() => setUi(prev => ({ ...prev, page: prev.page + 1 }))}>→</Button>
         </Group>
     );
 };
 
+const AdminLoginModal = ({ opened, onClose, onSuccess }) => {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
 
-
-
-function AppContent() {
-    const { enableAdmin, ui } = useComplaintContext();
-
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError("");
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+            if (onSuccess) onSuccess();
+            onClose();
+            setEmail("");
+            setPassword("");
+        } catch (err) {
+            console.error(err);
+            setError("Credenciales inválidas");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
+        <Modal opened={opened} onClose={onClose} title="Acceso Administrativo" centered radius="lg">
+            <form onSubmit={handleLogin}>
+                <TextInput label="Email" placeholder="admin@comuna.com" required value={email} onChange={(e) => setEmail(e.target.value)} mb="md" />
+                <PasswordInput label="Contraseña" placeholder="Tu contraseña" required value={password} onChange={(e) => setPassword(e.target.value)} mb="md" />
+                {error && <Text c="red" size="sm" mb="md">{error}</Text>}
+                <Button fullWidth type="submit" loading={loading} variant="gradient" gradient={{ from: '#75AADB', to: '#5385AD' }}>Ingresar</Button>
+            </form>
+        </Modal>
+    );
+};
 
+function AppContent() {
+    const { ui, pushToast } = useComplaintContext();
+    const { colorScheme } = useMantineColorScheme();
+    const isDark = colorScheme === 'dark';
+    const [loginOpened, { open: openLogin, close: closeLogin }] = useDisclosure(false);
+
+    return (
         <Container size="xl" mt="md">
-            {/* <Header />  (Eliminado) */}
             <ComplaintForm />
             <StatsPanel />
-            
-            <Box mt="xl">
-                <FilterRow />
-            </Box>
-            
+            <Box mt="xl"><FilterRow /></Box>
             <ComplaintsList />
             <Pagination />
-            
-            {/* <DeletedQueue /> (Eliminado) */}
             <Toast />
+            
             <Group justify="center" mt="xl" mb="xl">
-  <Button
-    variant="outline"
-    color={ui.isAdmin ? 'red' : 'gray'}
-    onClick={enableAdmin}
-  >
-    {ui.isAdmin ? 'Desactivar Modo Admin' : 'Activar Modo Admin'}
-  </Button>
-</Group>
-            <footer className="text-center mt-12 pt-4 border-t border-gray-200">
-                <Text size="sm" c="dimmed">
-                    Hecho con amor para la comunidad. Foro de Reclamos Comunal - Tu voz importa
-                </Text>
-            </footer>
+                {!ui.isAdmin ? (
+                    <Button variant="subtle" color="gray" size="sm" onClick={openLogin}>🔒 Acceso Admin</Button>
+                ) : (
+                    <Button variant="outline" color="red" size="sm" onClick={() => { signOut(auth); pushToast("👋 Sesión cerrada"); }}>🔓 Cerrar Sesión</Button>
+                )}
+            </Group>
+            <AdminLoginModal opened={loginOpened} onClose={closeLogin} onSuccess={() => pushToast("✅ Sesión iniciada")} />
+            
+            <Box component="footer" style={{ textAlign: 'center', marginTop: 48, paddingTop: 24, borderTop: isDark ? '2px solid rgba(117, 170, 219, 0.2)' : '2px solid rgba(117, 170, 219, 0.3)', background: isDark ? 'linear-gradient(135deg, rgba(117, 170, 219, 0.05) 0%, rgba(83, 133, 173, 0.05) 100%)' : 'linear-gradient(135deg, rgba(117, 170, 219, 0.08) 0%, rgba(83, 133, 173, 0.08) 100%)', borderRadius: 16, padding: 24 }}>
+                <Text size="sm" c="dimmed">Hecho con 💙 para la comunidad</Text>
+                <Text size="sm" c="dimmed" fw={600}>Foro de Reclamos Comunal - Tu voz importa</Text>
+            </Box>
         </Container>
     );
 }
-
 
 export default function ForoReclamosComuna() {
     return ( 

@@ -1,49 +1,38 @@
-// src/components/FacebookFeed.jsx
 import React from 'react';
-import { Paper, Title, Text, Container } from '@mantine/core';
-
-const FACEBOOK_PAGE_URL = "https://www.facebook.com/profile.php?id=61551854110531&locale=es_LA";
-const FACEBOOK_PAGE_NAME = "Comuna El Manantial";
+import { Title, Text, Container, Box, Paper } from '@mantine/core';
 
 export default function FacebookFeed() {
-  const encodedUrl = encodeURIComponent(FACEBOOK_PAGE_URL);
-  
   return (
-    <Container size="md"> 
-      <Title order={1} ta="center" mb="md">
-        Nuestra Actividad en Redes
-      </Title>
-      
-      <Text ta="center" c="dimmed" mb="xl">
-        Seguí el día a día de la comuna y las últimas 
-        novedades directamente desde nuestra página oficial de Facebook.
-      </Text>
-      
-      <Paper 
-        withBorder 
-        shadow="md" 
-        radius="md" 
-        p="lg"
-        style={{
-          maxWidth: 500,
-          margin: '0 auto'
-        }}
-      >
-        <Title order={3} mb="md">
-          Seguinos en {FACEBOOK_PAGE_NAME}
+    <Container size="xl" mb="xl" mt="xl"> 
+      <Box mb="xl" style={{ textAlign: 'center' }}>
+        <Title order={1} mb="sm">
+          Nuestra Actividad en Redes
         </Title>
         
+        <Text c="dimmed">
+          Seguí el día a día de la comuna y las últimas 
+          novedades directamente desde nuestra página oficial de Facebook.
+        </Text>
+      </Box>
+      
+      {/* Integration with SociableKit iframe for Facebook Page feed */}
+      <Paper 
+        shadow="md" 
+        radius="lg" 
+        p="xs" 
+        withBorder 
+        style={{ overflow: 'hidden', background: 'white' }}
+      >
         <iframe 
-          src={`https://www.facebook.com/plugins/page.php?href=${encodedUrl}&tabs=timeline&width=500&height=600&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=true&appId`}
-          width="100%" 
-          height="600" 
-          style={{ border: 'none', overflow: 'hidden' }}
-          scrolling="no" 
+          src="https://widgets.sociablekit.com/facebook-page-posts/iframe/25623903" 
           frameBorder="0" 
-          allowFullScreen={true} 
-          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-        />
+          width="100%" 
+          height="1000" 
+          style={{ border: 'none', maxWidth: '100%' }}
+          title="Facebook Feed Comuna"
+        ></iframe>
       </Paper>
+      
     </Container>
   );
 }

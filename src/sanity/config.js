@@ -2,7 +2,7 @@ import { createClient } from '@sanity/client'
 import imageUrlBuilder from '@sanity/image-url'
 
 export const client = createClient({
-  projectId: 'gtphxfbi', // Lo sacás de sanity/sanity.config.js
+  projectId: 'gtphxfbi', 
   dataset: 'production',
   useCdn: true,
   apiVersion: '2024-01-01',
